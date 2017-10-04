@@ -39,5 +39,9 @@ try:
 except ImportError:
     pass  # The user may not have a module installed
 
+try:
+    from .iqfeedstore import IQFeedStore
+except ImportError:
+    pass  # The user may not have a module installed
 
 from .vchartfile import VChartFile

@@ -68,15 +68,16 @@ def to_datetime(dtime64, msecs, tz):
 
 
 class IQFeedBarListener(iq.VerboseBarListener):
-    def __init__(self, name, queue):
+    def __init__(self, name, queue, store):
         iq.VerboseBarListener.__init__(self, name)
         self.queue = queue
+        self.store = store
 
     def process_history_bar(self, bar_data):
         pass
 
     def process_live_bar(self, bar_data):
-        self.last_activity = datetime.now()
+        self.store.last_activity = datetime.now()
         for bar in bar_data:
             _ticker, _date, _time, _open, _high, _low, _close, _volume, _openinterest, _ = bar
             self.queue[_ticker].put({'datetime': to_datetime(_date, _time, pytz.timezone('US/Eastern')),
@@ -127,7 +128,7 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
         ('notifyall', False),
         ('debug', False),
         ('ping_interval', 5),
-        ('timeout', 60),
+        ('timeout', 120),
         ('reconnect', False),
     )
 
@@ -159,7 +160,7 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
         """Start listening to IQFeed bars for the specified time frame."""
         bar_conn = iq.BarConn(name="IQFeed Bar Conn %s" % bt.TimeFrame.getname(timeframe))
         bar_listener = IQFeedBarListener("IQFeed Bar listener %s" % bt.TimeFrame.getname(timeframe),
-                                         self.queues[timeframe])
+                                         self.queues[timeframe], self)
         bar_conn.add_listener(bar_listener)
 
         watched = []

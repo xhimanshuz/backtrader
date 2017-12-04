@@ -66,6 +66,22 @@ def to_datetime(dtime64, msecs, tz):
                   microsecond=int(microsecond))
     return tz.localize(dt).astimezone(pytz.utc)
 
+class IQFeedLevel1QuoteListener(iq.VerboseIQFeedListener):
+    def __init__(self, name, store):
+        iq.VerboseIQFeedListener.__init__(self, name)
+        self.store = store
+
+    def process_update(self, update):
+        for symbol, tick, mopen in update:
+            self.store.marketopen[symbol] = mopen
+
+    process_summary = process_update
+
+    def empty(self, param):
+        pass
+
+    process_ip_addresses_used = process_auth_key = process_customer_info = \
+        process_timestamp = process_fundamentals = empty
 
 class IQFeedBarListener(iq.VerboseBarListener):
     def __init__(self, name, queue, store):
@@ -80,13 +96,15 @@ class IQFeedBarListener(iq.VerboseBarListener):
         self.store.last_activity = datetime.now()
         for bar in bar_data:
             _ticker, _date, _time, _open, _high, _low, _close, _volume, _openinterest, _ = bar
-            self.queue[_ticker].put({'datetime': to_datetime(_date, _time, pytz.timezone('US/Eastern')),
-                                     'open': _open,
-                                     'high': _high,
-                                     'low': _low,
-                                     'close': _close,
-                                     'volume': _volume,
-                                     'openinterest': _openinterest})
+            #print(">>> process_live_bar:", to_datetime(_date, _time, pytz.timezone('US/Eastern')), _ticker, self.queue[_ticker])
+            if self.store.marketopen[_ticker]:
+                self.queue[_ticker].put({'datetime': to_datetime(_date, _time, pytz.timezone('US/Eastern')),
+                                         'open': _open,
+                                         'high': _high,
+                                         'low': _low,
+                                         'close': _close,
+                                         'volume': _volume,
+                                         'openinterest': _openinterest})
 
 class MetaSingleton(MetaParams):
     '''Metaclass to make a metaclassed class a singleton'''
@@ -155,16 +173,23 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
 
         self.stopped = False
         self.last_activity = datetime.now() # datetime of the latest received message
+        self.marketopen = {} # 'Market Open' flag from IQFeed
 
     def run_forever(self, timeframe):
         """Start listening to IQFeed bars for the specified time frame."""
+        quote_conn = iq.QuoteConn(name="IQFeed Quote Conn %s" % bt.TimeFrame.getname(timeframe))
+        quote_listener = IQFeedLevel1QuoteListener("IQFeed Level 1 Quote Listener %s" % \
+                                                   bt.TimeFrame.getname(timeframe), self)
+        quote_conn.add_listener(quote_listener)
+
         bar_conn = iq.BarConn(name="IQFeed Bar Conn %s" % bt.TimeFrame.getname(timeframe))
         bar_listener = IQFeedBarListener("IQFeed Bar listener %s" % bt.TimeFrame.getname(timeframe),
                                          self.queues[timeframe], self)
         bar_conn.add_listener(bar_listener)
 
         watched = []
-        with iq.ConnConnector([bar_conn]) as connector:
+        with iq.ConnConnector([bar_conn, quote_conn]) as connector:
+            quote_conn.select_update_fieldnames(['Symbol', 'Tick', 'Market Open'])
             while not self.stopped:
                 for data in self.datas:
                     if data.p.timeframe == timeframe and id(data) not in watched:
@@ -180,13 +205,16 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
                                        lookback_bars=None,
                                        update=0)
                         watched.append(id(data))
+                        quote_conn.watch(data.p.dataname)
                 time.sleep(0.1)
 
         for data in self.datas:
+            quote_conn.unwatch(data.p.dataname)
             if data.p.timeframe == timeframe:
                 bar_conn.unwatch(data.p.dataname)
 
         bar_conn.remove_listener(bar_listener)
+        quote_conn.remove_listener(quote_listener)
 
     def start(self, data=None, broker=None):
         if broker is not None:

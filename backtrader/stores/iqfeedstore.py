@@ -264,6 +264,8 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
 
         hist_conn = iq.HistoryConn(name="IQFeed Store History")
 
+        cdata = [data for data in self.datas if data._dataname == dataname][0]
+
         with iq.ConnConnector([hist_conn]) as connector:
             try:
                 if timeframe in (bt.TimeFrame.Ticks, bt.TimeFrame.Seconds, bt.TimeFrame.Minutes):
@@ -274,6 +276,8 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
                                                             interval_type=interval_type,
                                                             bgn_prd=dtbegin,
                                                             end_prd=dtend,
+                                                            bgn_flt=cdata.p.sessionstart,
+                                                            end_flt=cdata.p.sessionend,
                                                             ascend=True)
                 elif timeframe == bt.TimeFrame.Days:
                     bars = hist_conn.request_daily_data_for_dates(ticker=dataname,

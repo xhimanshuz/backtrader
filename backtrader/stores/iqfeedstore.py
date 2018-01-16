@@ -47,7 +47,7 @@ from backtrader.utils.py3 import queue, with_metaclass, urlopen
 from backtrader.utils import AutoDict
 
 
-def to_datetime(dtime64, msecs, tz):
+def to_datetime(dtime64, msecs, tz=pytz.utc):
     """Convert data and time since midnight to datetime.datetime"""
     assert msecs >= 0
     assert msecs <= 86400000000
@@ -64,7 +64,7 @@ def to_datetime(dtime64, msecs, tz):
                   minute=int(minute),
                   second=int(second),
                   microsecond=int(microsecond))
-    return tz.localize(dt).astimezone(pytz.utc)
+    return tz.localize(dt)
 
 class IQFeedLevel1QuoteListener(iq.VerboseIQFeedListener):
     def __init__(self, name, store):
@@ -303,7 +303,7 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
                 dt64, tm64, opn, high, low, close, volume, pvolume, oint = bar
                 dtime = dt64 + tm64
 
-            q.put({'date': dtime.astype(datetime),
+            q.put({'date': cdata.p.tz.localize(dtime.astype(datetime)),
                    'open': opn, 'high': high, 'low': low, 'close': close,
                    'volume': volume, 'openinterest': oint})
 

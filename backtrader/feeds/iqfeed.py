@@ -145,7 +145,7 @@ class IQFeed(with_metaclass(MetaIQFeed, DataBase)):
         self._reconns = 0
 
     def _st_start(self, instart=True, tmout=None):
-        if self.p.historical:
+        if self.fromdate != float("-inf"):
             self.put_notification(self.DELAYED)
 
             dtend = None
@@ -160,7 +160,8 @@ class IQFeed(with_metaclass(MetaIQFeed, DataBase)):
                                                 self._timeframe, self._compression)
 
             self._state = self._ST_HISTORBACK
-            return True
+            if self.p.historical:
+                return True
 
         else:
             self._state = self._ST_LIVE

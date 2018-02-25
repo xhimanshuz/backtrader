@@ -203,6 +203,8 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
                                        bgn_bars=None,
                                        lookback_days=1,
                                        lookback_bars=None,
+                                       bgn_flt=data.p.sessionstart,
+                                       end_flt=data.p.sessionend,
                                        update=0)
                         watched.append(id(data))
                         quote_conn.watch(data.p.dataname)

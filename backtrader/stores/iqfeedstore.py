@@ -300,12 +300,15 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
 
         for bar in bars:
             if len(bar) == 7:
-                dtime, opn, high, low, close, volume, oint = bar
+                dte, opn, high, low, close, volume, oint = bar
+                dte = dte.astype(date)
+                dtime = datetime(dte.year, dte.month, dte.day)
             else:
                 dt64, tm64, opn, high, low, close, volume, pvolume, oint = bar
                 dtime = dt64 + tm64
+                dtime = dtime.astype(datetime)
 
-            q.put({'date': cdata.p.tz.localize(dtime.astype(datetime)),
+            q.put({'date': cdata.p.tz.localize(dtime),
                    'open': opn, 'high': high, 'low': low, 'close': close,
                    'volume': volume, 'openinterest': oint})
 

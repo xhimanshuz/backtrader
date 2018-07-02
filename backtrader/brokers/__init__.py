@@ -40,3 +40,6 @@ try:
     from .oandabroker import OandaBroker
 except ImportError as e:
     pass  # The user may not have something installed
+
+from .fixbroker import FIXBroker
+

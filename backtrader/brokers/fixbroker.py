@@ -37,6 +37,8 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
+VERSION = '0.1.0'
+
 class FIXCommInfo(CommInfoBase):
     def getvaluesize(self, size, price):
         # In real life the margin approaches the price
@@ -236,7 +238,7 @@ class FIXApplication(fix.Application):
                 side = get_value(message, fix.Side())
                 price = get_value(message, fix.Price())
                 size = get_value(message, fix.OrderQty())
-                if side == fix.Side_SELL:
+                if side in (fix.Side_SELL, fix.Side_SELL_SHORT):
                     size = -size
 
 

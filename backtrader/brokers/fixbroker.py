@@ -86,8 +86,14 @@ class FIXOrder(OrderBase):
         msg.setField(fix.OrdType(self._OrderTypes[self.exectype])) #40
         msg.setField(fix.OrderQty(abs(self.size))) #38
         msg.setField(fix.OrderQty2(abs(self.size)))
-        msg.setField(fix.Price(self.price))
         msg.setField(fix.TransactTime())
+        oname = self.getordername()
+        if oname in ("Stop", "StopLimit"):
+            msg.setField(fix.StopPx(self.price))
+            if oname == "StopLimit":
+                msg.setField(fix.Price(self.plimit))
+        if oname != "StopLimit":
+            msg.setField(fix.Price(self.price))
 
         sdict = self.settings.get()
         msg.setField(fix.ExDestination(sdict.getString("Destination")))

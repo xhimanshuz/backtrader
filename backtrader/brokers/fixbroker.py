@@ -31,6 +31,7 @@ from datetime import datetime
 from time import sleep
 
 import quickfix as fix
+import quickfix50sp2 as fix50sp2
 
 from backtrader import BrokerBase, OrderBase, Order
 from backtrader.comminfo import CommInfoBase
@@ -96,7 +97,28 @@ class FIXOrder(OrderBase):
             msg.setField(fix.Price(self.price))
 
         sdict = self.settings.get()
-        msg.setField(fix.ExDestination(sdict.getString("Destination")))
+
+        ex_destination = kwargs.get("ExDestination")
+        if ex_destination is None:
+            ex_destination = sdict.getString("Destination")
+        msg.setField(fix.ExDestination(ex_destination))
+
+        for param in ("TargetStrategy", "NoStrategyParameters", "HandlInst"):
+            val = kwargs.get(param)
+            if val is not None:
+                if param == "TargetStrategy":
+                    msg.setField(fix.StringField(847, val))
+                else:
+                    msg.setField(getattr(fix, param)(val))
+
+        if "StrategyParameters" in kwargs:
+            group = fix50sp2.NewOrderSingle.NoStrategyParameters()
+            for name, value in kwargs["StrategyParameters"].items():
+                group.setField(fix.StrategyParameterName(name))
+                group.setField(fix.StrategyParameterValue(value))
+
+            msg.addGroup(group)
+
         msg.setField(fix.Account(sdict.getString("Account")))
         msg.setField(fix.TargetSubID(sdict.getString("TargetSubID")))
 

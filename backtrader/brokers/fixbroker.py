@@ -145,7 +145,7 @@ class FIXOrder(OrderBase):
         msg.setField(fix.Account(sdict.getString("Account")))
         msg.setField(fix.TargetSubID(sdict.getString("TargetSubID")))
 
-        fix.Session.sendToTarget(msg, app.sessionID)
+        fix.Session.sendToTarget(msg, app.session_id)
 
 def get_value(message, tag):
     """Get tag value from the message."""

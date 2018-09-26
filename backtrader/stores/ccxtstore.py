@@ -82,7 +82,7 @@ class CCXTStore(object):
         if store:
             store_conf = cls.configs[exchange]
             if store_conf:
-                if not set(config.items()).issubset(set(store_conf.items())):
+                if dict(store_conf, **config) != store_conf:
                     raise ValueError("%s exchange is already configured: %s" % \
                                      (exchange, store_conf))
             return store

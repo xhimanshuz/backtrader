@@ -279,6 +279,7 @@ class FIXApplication(fix.Application):
                             self.order_notifications[(order_id, order.status)] = True
 
                 if etype == fix.ExecType_FILL:
+                    price = get_value(message, fix.LastPx())
                     if order_id not in self.fills:
                         self.update_position(symbol, price, size)
                         self.fills.append(order_id)
@@ -286,6 +287,8 @@ class FIXApplication(fix.Application):
                         if order:
                             order.execute(0, size, price, 0, size*price, 0.0,
                                           size, 0.0, 0.0, 0.0, 0.0, pos.size, pos.price)
+                elif get_value(message, fix.OrdType()) == fix.OrdType_STOP:
+                    price = get_value(message, fix.StopPx())
 
                 print("DEBUG: order report: type: %s, id: %s, symbol: %s, price: %s, size: %s" % \
                       (self.ETYPES[etype], order_id, symbol, price, size))

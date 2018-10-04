@@ -27,6 +27,7 @@ import shutil
 import threading
 
 from collections import defaultdict
+from copy import copy
 from datetime import datetime
 from time import sleep
 
@@ -38,7 +39,7 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 
 class FIXCommInfo(CommInfoBase):
     def getvaluesize(self, size, price):
@@ -373,7 +374,10 @@ class FIXBroker(BrokerBase):
             pass
 
     def notify(self, order):
-        self.queue.put(order)
+        self.queue.put(copy(order))
+
+    def next(self):
+        self.queue.put(None)  # mark notification boundary
 
     def _submit(self, action, owner, data, size, price=None, plimit=None,
                 exectype=None, valid=None, tradeid=0, **kwargs):
@@ -386,7 +390,6 @@ class FIXBroker(BrokerBase):
         order.addcomminfo(self.getcommissioninfo(data))
         order.submit_fix(self.app)
         self.orders[order.order_id] = order
-        self.notify(order)
 
         return order
 

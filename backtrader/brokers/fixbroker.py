@@ -27,7 +27,6 @@ import shutil
 import threading
 
 from collections import defaultdict
-from copy import copy
 from datetime import datetime
 from time import sleep
 
@@ -39,7 +38,7 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 
 class FIXCommInfo(CommInfoBase):
     def getvaluesize(self, size, price):
@@ -270,14 +269,7 @@ class FIXApplication(fix.Application):
                 if side in (fix.Side_SELL, fix.Side_SELL_SHORT):
                     size = -size
 
-
                 order = self.broker.orders.get(order_id)
-                if order:
-                    if etype in self.ORDER_STATUSES:
-                        order.status = self.ORDER_STATUSES[etype]
-                        if (order_id, order.status) not in self.order_notifications:
-                            self.broker.notify(order)
-                            self.order_notifications[(order_id, order.status)] = True
 
                 if etype == fix.ExecType_FILL:
                     price = get_value(message, fix.LastPx())
@@ -288,6 +280,14 @@ class FIXApplication(fix.Application):
                         if order:
                             order.execute(0, size, price, 0, size*price, 0.0,
                                           size, 0.0, 0.0, 0.0, 0.0, pos.size, pos.price)
+                            order.completed()
+                if order:
+                    if etype in self.ORDER_STATUSES:
+                        order.status = self.ORDER_STATUSES[etype]
+                        if (order_id, order.status) not in self.order_notifications:
+                            self.order_notifications[(order_id, order.status)] = True
+                            self.broker.notify(order)
+
                 elif get_value(message, fix.OrdType()) == fix.OrdType_STOP:
                     price = get_value(message, fix.StopPx())
 
@@ -374,7 +374,7 @@ class FIXBroker(BrokerBase):
             pass
 
     def notify(self, order):
-        self.queue.put(copy(order))
+        self.queue.put(order.clone())
 
     def next(self):
         self.queue.put(None)  # mark notification boundary

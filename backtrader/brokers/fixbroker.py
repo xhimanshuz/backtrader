@@ -26,9 +26,11 @@ import os
 import shutil
 import threading
 
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from datetime import datetime
+from functools import wraps
 from time import sleep
+from traceback import format_exc
 
 import quickfix as fix
 import quickfix50sp2 as fix50sp2
@@ -38,7 +40,18 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
-VERSION = '0.1.2'
+VERSION = '0.2.0'
+
+# Map backtrader order types to the FIX order types
+ORDERTYPE_MAP = {
+    Order.Market: fix.OrdType_MARKET,
+    Order.Limit: fix.OrdType_LIMIT,
+    Order.Close: fix.OrdType_ON_CLOSE,
+    Order.Stop: fix.OrdType_STOP,
+    Order.StopLimit: fix.OrdType_STOP_LIMIT,
+    #Order.StopTrail: ???,
+    #Order.StopTrailLimit: ???,
+}
 
 class FIXCommInfo(CommInfoBase):
     def getvaluesize(self, size, price):
@@ -51,18 +64,6 @@ class FIXCommInfo(CommInfoBase):
         return abs(size) * price
 
 class FIXOrder(OrderBase):
-    # Map backtrader order types to the FIX ones
-    _OrderTypes = {
-        None: fix.OrdType_MARKET,  # default
-        Order.Market: fix.OrdType_MARKET,
-        Order.Limit: fix.OrdType_LIMIT,
-        Order.Close: fix.OrdType_ON_CLOSE,
-        Order.Stop: fix.OrdType_STOP,
-        Order.StopLimit: fix.OrdType_STOP_LIMIT,
-        #Order.StopTrail: ???,
-        #Order.StopTrailLimit: ???,
-    }
-
     def __init__(self, action, **kwargs):
         self.ordtype = self.Buy if action == 'BUY' else self.Sell
 
@@ -72,6 +73,9 @@ class FIXOrder(OrderBase):
         for kwarg in kwargs:
             if not hasattr(self, kwarg):
                 setattr(self, kwarg, kwargs[kwarg])
+
+        if self.exectype is None:
+            self.exectype == Order.Market
 
         now = datetime.utcnow()
         self.order_id = now.strftime("%Y-%m-%d_%H:%M:%S_%f")
@@ -84,7 +88,7 @@ class FIXOrder(OrderBase):
         msg.setField(fix.HandlInst(fix.HandlInst_MANUAL_ORDER_BEST_EXECUTION)) #2
         msg.setField(fix.Symbol(self.data._name)) #55
         msg.setField(fix.Side(fix.Side_BUY if action == 'BUY' else fix.Side_SELL)) #43
-        msg.setField(fix.OrdType(self._OrderTypes[self.exectype])) #40
+        msg.setField(fix.OrdType(ORDERTYPE_MAP[self.exectype])) #40
         msg.setField(fix.OrderQty(abs(self.size))) #38
         msg.setField(fix.OrderQty2(abs(self.size)))
         msg.setField(fix.TransactTime())
@@ -128,29 +132,22 @@ class FIXOrder(OrderBase):
     def submit_fix(self, app):
         fix.Session.sendToTarget(self.msg, app.session_id)
 
-    def cancel_fix(self, app):
-        msg = fix.Message()
-        header = msg.getHeader()
-
-        header.setField(fix.BeginString(fix.BeginString_FIX42))
-        header.setField(fix.MsgType(fix.MsgType_OrderCancelRequest))
-
-        msg.setField(fix.OrigClOrdID(self.order_id))
-        msg.setField(fix.ClOrdID(self.order_id))
-        msg.setField(fix.OrderID(self.order_id))
-        msg.setField(fix.Symbol(self.data._name)) #55
-
-        sdict = self.settings.get()
-        msg.setField(fix.ExDestination(sdict.getString("Destination")))
-        msg.setField(fix.Account(sdict.getString("Account")))
-        msg.setField(fix.TargetSubID(sdict.getString("TargetSubID")))
-
-        fix.Session.sendToTarget(msg, app.session_id)
+OpenedFIXOrder = namedtuple('OpenedFIXOrder', 'order_id symbol price size type status')
 
 def get_value(message, tag):
     """Get tag value from the message."""
     message.getField(tag)
     return tag.getValue()
+
+def catche(func):
+    @wraps(func)
+    def wrapper(*args, **kwds):
+        try:
+            return func(*args, **kwds)
+        except:
+            print("EXCEPTION:", format_exc())
+            raise
+    return wrapper
 
 class FIXApplication(fix.Application):
 
@@ -165,6 +162,8 @@ class FIXApplication(fix.Application):
                       fix.ExecType_CANCELED: Order.Canceled,
                       fix.ExecType_PARTIAL_FILL: Order.Partial}
 
+    ORDER_TYPES = {v: k for k, v in ORDERTYPE_MAP.items()}
+
     def __init__(self, broker):
         fix.Application.__init__(self)
         self.broker = broker
@@ -174,19 +173,24 @@ class FIXApplication(fix.Application):
         self.fills = [] # list of already processed fills
         self.order_notifications = {} # list of order notifications
 
+    @catche
     def onCreate(self, arg0):
         print("DEBUG: onCreate:", arg0)
 
+    @catche
     def onLogon(self, arg0):
         self.session_id = arg0
         print("DEBUG: onLogon:", arg0)
 
+    @catche
     def onLogout(self, arg0):
         print("DEBUG: onLogout:", arg0)
 
+    @catche
     def onMessage(self, message, sessionID):
         print("DEBUG: onMessage: ", sessionID, message.toString().replace('\x01', '|'))
 
+    @catche
     def toAdmin(self, message, sessionID):
         msgType = fix.MsgType()
         message.getHeader().getField(msgType)
@@ -198,6 +202,7 @@ class FIXApplication(fix.Application):
         else:
             print("DEBUG: toAdmin: ", sessionID, message.toString().replace('\x01', '|'))
 
+    @catche
     def fromAdmin(self, message, sessionID): #, message):
         msgType = fix.MsgType()
         message.getHeader().getField(msgType)
@@ -206,9 +211,11 @@ class FIXApplication(fix.Application):
         else:
             print("DEBUG: fromAdmin: ", sessionID, message.toString().replace('\x01', '|'))
 
+    @catche
     def toApp(self, sessionID, message):
         print("DEBUG: toApp: ", sessionID, message.toString().replace('\x01', '|'))
 
+    @catche
     def fromApp(self, message, sessionID):
         msgType = fix.MsgType()
         message.getHeader().getField(msgType)
@@ -281,6 +288,8 @@ class FIXApplication(fix.Application):
                             order.execute(0, size, price, 0, size*price, 0.0,
                                           size, 0.0, 0.0, 0.0, 0.0, pos.size, pos.price)
                             order.completed()
+                        if order_id in self.broker.open_orders:
+                            self.broker.open_orders.pop(order_id)
                 if order:
                     if etype in self.ORDER_STATUSES:
                         order.status = self.ORDER_STATUSES[etype]
@@ -288,7 +297,22 @@ class FIXApplication(fix.Application):
                             self.order_notifications[(order_id, order.status)] = True
                             self.broker.notify(order)
 
-                elif get_value(message, fix.OrdType()) == fix.OrdType_STOP:
+                otype = get_value(message, fix.OrdType())
+                if etype == fix.ExecType_PENDING_NEW:
+                    status = self.ORDER_STATUSES[etype]
+                    self.broker.open_orders[order_id] = OpenedFIXOrder(order_id=order_id,
+                                                                       symbol=symbol,
+                                                                       size=size,
+                                                                       price=price,
+                                                                       type=self.ORDER_TYPES[otype],
+                                                                       status=status)
+                    self.order_notifications[(order_id, status)] = True
+
+                elif etype == fix.ExecType_CANCELLED:
+                    if order_id in self.broker.open_orders:
+                        self.broker.open_orders.pop(order_id)
+
+                elif otype == fix.OrdType_STOP:
                     price = get_value(message, fix.StopPx())
 
                 print("DEBUG: order report: type: %s, id: %s, symbol: %s, price: %s, size: %s" % \
@@ -309,6 +333,31 @@ class FIXApplication(fix.Application):
         else:
             self.broker.positions[symbol] = Position(size, price)
 
+    def cancel(self, order, settings):
+        msg = fix.Message()
+        header = msg.getHeader()
+
+        if hasattr(order, 'symbol'):
+            symbol = order.symbol
+        else:
+            symbol = order.data._name
+
+        header.setField(fix.BeginString(fix.BeginString_FIX42))
+        header.setField(fix.MsgType(fix.MsgType_OrderCancelRequest))
+
+        msg.setField(fix.OrigClOrdID(order.order_id))
+        msg.setField(fix.ClOrdID(order.order_id))
+        msg.setField(fix.OrderID(order.order_id))
+        msg.setField(fix.Symbol(symbol)) #55
+
+        sdict = settings.get()
+        msg.setField(fix.ExDestination(sdict.getString("Destination")))
+        msg.setField(fix.Account(sdict.getString("Account")))
+        msg.setField(fix.TargetSubID(sdict.getString("TargetSubID")))
+
+        fix.Session.sendToTarget(msg, self.session_id)
+
+
 class FIXBroker(BrokerBase):
     '''Broker implementation for FIX protocol using quickfix library.'''
 
@@ -326,6 +375,7 @@ class FIXBroker(BrokerBase):
         self.app = None
 
         self.orders = {}
+        self.open_orders = {}
         self.positions = defaultdict(Position)
         self.executions = {}
 
@@ -407,12 +457,17 @@ class FIXBroker(BrokerBase):
 
     def cancel(self, order):
         print("DEBUG: canceling order", order)
-        _order = self.orders.get(order.order_id)
-        if not ord:
+
+        if order in self.open_orders:
+            _order = self.open_orders[order] # order id passed
+        elif order.order_id in self.open_orders:
+            _order = self.open_orders.get(order.order_id)
+        else:
             print("DEBUG: order not found", order)
             return # not found ... not cancellable
 
         if _order.status == Order.Cancelled:  # already cancelled
+            print("DEBUG: order already canceled", _order)
             return
 
-        _order.cancel_fix(self.app)
+        self.app.cancel(_order, self.settings)

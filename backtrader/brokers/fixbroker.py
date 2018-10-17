@@ -40,7 +40,7 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 
 # Map backtrader order types to the FIX order types
 ORDERTYPE_MAP = {
@@ -313,7 +313,9 @@ class FIXApplication(fix.Application):
                         self.broker.open_orders.pop(order_id)
 
                 elif otype == fix.OrdType_STOP:
-                    price = get_value(message, fix.StopPx())
+                    stop_price_tag = fix.StopPx()
+                    if message.isSetField(stop_price_tag):
+                        price = get_value(message, stop_price_tag)
 
                 print("DEBUG: order report: type: %s, id: %s, symbol: %s, price: %s, size: %s" % \
                       (self.ETYPES[etype], order_id, symbol, price, size))

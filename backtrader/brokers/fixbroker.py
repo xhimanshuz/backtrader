@@ -40,7 +40,7 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
-VERSION = '0.2.1'
+VERSION = '0.3.0'
 
 # Map backtrader order types to the FIX order types
 ORDERTYPE_MAP = {
@@ -386,9 +386,8 @@ class FIXBroker(BrokerBase):
         # attributes set by fix.Application
         self.HardBuyingPowerLimit = 0
 
-        # start quickfix main loop in a separate thread
-        thread = threading.Thread(target=self.fix)
-        thread.start()
+        self.thread = None
+        self.start()
 
     def fix(self):
         dirpath = "Sessions"
@@ -403,9 +402,16 @@ class FIXBroker(BrokerBase):
         while not self.done:
             sleep(1)
         initiator.stop()
+        sleep(1)
 
     def stop(self):
         self.done = True
+
+    def start(self):
+        self.done = False
+        # start quickfix main loop in a separate thread
+        self.thread = threading.Thread(target=self.fix)
+        self.thread.start()
 
     def getcommissioninfo(self, data):
         return FIXCommInfo()

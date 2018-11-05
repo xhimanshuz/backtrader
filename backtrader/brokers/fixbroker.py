@@ -40,7 +40,7 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
-VERSION = '0.3.1'
+VERSION = '0.3.2'
 
 # Map backtrader order types to the FIX order types
 ORDERTYPE_MAP = {
@@ -387,7 +387,6 @@ class FIXBroker(BrokerBase):
         self.HardBuyingPowerLimit = 0
 
         self.thread = None
-        self.start()
 
     def fix(self):
         dirpath = "Sessions"

@@ -197,6 +197,7 @@ class FIXApplication(fix.Application):
         if msgType.getValue() == fix.MsgType_Logon:
             target_subid = self.broker.settings.get().getString("TargetSubID")
             message.getHeader().setField(fix.TargetSubID(target_subid))
+            message.getHeader().setField(fix.ResetSeqNumFlag(True))
         elif msgType.getValue() == fix.MsgType_Heartbeat:
             print("DEBUG: Heartbeat reply")
         else:
@@ -271,13 +272,17 @@ class FIXApplication(fix.Application):
                 order_id = get_value(message, fix.ClOrdID())
                 symbol = get_value(message, fix.Symbol())
                 side = get_value(message, fix.Side())
-                price = get_value(message, fix.Price())
                 size = get_value(message, fix.OrderQty())
                 if side in (fix.Side_SELL, fix.Side_SELL_SHORT):
                     size = -size
 
                 order = self.broker.orders.get(order_id)
 
+                price_tag = fix.Price()
+                if message.isSetField(price_tag):
+                    price = get_value(message, price_tag)
+                else:
+                    price = 0
                 if etype == fix.ExecType_FILL:
                     price = get_value(message, fix.LastPx())
                     if order_id not in self.fills:

@@ -394,10 +394,10 @@ class FIXBroker(BrokerBase):
         self.thread = None
 
     def fix(self):
-        dirpath = "Sessions"
-        if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
         self.settings = fix.SessionSettings(self.config)
+        fs_path = self.settings.get().getString("FileStorePath")
+        if os.path.exists(fs_path) and os.path.isdir(fs_path):
+            shutil.rmtree(fs_path)
         storeFactory = fix.FileStoreFactory(self.settings)
         logFactory = fix.ScreenLogFactory(self.settings)
         self.app = FIXApplication(self)

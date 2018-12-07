@@ -40,6 +40,11 @@ from backtrader.comminfo import CommInfoBase
 from backtrader.position import Position
 from backtrader.utils.py3 import queue
 
+try:
+    basestring
+except:
+    basestring = str
+
 VERSION = '0.3.2'
 
 # Map backtrader order types to the FIX order types
@@ -128,6 +133,9 @@ class FIXOrder(OrderBase):
 
         self.msg = msg
         print("DEBUG: order msg:", msg)
+
+    def __hash__(self):
+        return self.ref
 
     def submit_fix(self, app):
         fix.Session.sendToTarget(self.msg, app.session_id)

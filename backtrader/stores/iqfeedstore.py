@@ -73,7 +73,7 @@ class IQFeedLevel1QuoteListener(iq.VerboseIQFeedListener):
 
     def process_update(self, update):
         for symbol, tick, mopen in update:
-            self.store.marketopen[symbol] = mopen
+            self.store.marketopen[symbol.decode()] = mopen
 
     process_summary = process_update
 
@@ -96,7 +96,7 @@ class IQFeedBarListener(iq.VerboseBarListener):
         self.store.last_activity = datetime.now()
         for bar in bar_data:
             _ticker, _date, _time, _open, _high, _low, _close, _volume, _openinterest, _ = bar
-            #print(">>> process_live_bar:", to_datetime(_date, _time, pytz.timezone('US/Eastern')), _ticker, self.queue[_ticker])
+            _ticker = _ticker.decode()
             if self.store.marketopen[_ticker]:
                 self.queue[_ticker].put({'datetime': to_datetime(_date, _time, pytz.timezone('US/Eastern')),
                                          'open': _open,
@@ -177,13 +177,14 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
 
     def run_forever(self, timeframe):
         """Start listening to IQFeed bars for the specified time frame."""
-        quote_conn = iq.QuoteConn(name="IQFeed Quote Conn %s" % bt.TimeFrame.getname(timeframe))
+        name = bt.TimeFrame.getname(timeframe, 0)
+        quote_conn = iq.QuoteConn(name="IQFeed Quote Conn %s" % name)
         quote_listener = IQFeedLevel1QuoteListener("IQFeed Level 1 Quote Listener %s" % \
-                                                   bt.TimeFrame.getname(timeframe), self)
+                                                   name, self)
         quote_conn.add_listener(quote_listener)
 
-        bar_conn = iq.BarConn(name="IQFeed Bar Conn %s" % bt.TimeFrame.getname(timeframe))
-        bar_listener = IQFeedBarListener("IQFeed Bar listener %s" % bt.TimeFrame.getname(timeframe),
+        bar_conn = iq.BarConn(name="IQFeed Bar Conn %s" % name)
+        bar_listener = IQFeedBarListener("IQFeed Bar listener %s" % name,
                                          self.queues[timeframe], self)
         bar_conn.add_listener(bar_listener)
 

@@ -45,7 +45,7 @@ try:
 except:
     basestring = str
 
-VERSION = '0.3.2'
+VERSION = '0.3.3'
 
 # Map backtrader order types to the FIX order types
 ORDERTYPE_MAP = {
@@ -139,6 +139,9 @@ class FIXOrder(OrderBase):
 
     def submit_fix(self, app):
         fix.Session.sendToTarget(self.msg, app.session_id)
+
+    def is_cancelled(self):
+        return self.status == Order.Cancelled
 
 OpenedFIXOrder = namedtuple('OpenedFIXOrder', 'order_id symbol price size type status')
 

@@ -80,6 +80,9 @@ class IQFeedLevel1QuoteListener(iq.VerboseIQFeedListener):
     def empty(self, param):
         pass
 
+    def process_invalid_symbol(self, bad_symbol):
+        print(f"{self.__name__}: invalid Symbol: {bad_symbol}")
+
     process_ip_addresses_used = process_auth_key = process_customer_info = \
         process_timestamp = process_fundamentals = empty
 

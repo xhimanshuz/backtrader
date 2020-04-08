@@ -293,7 +293,7 @@ class IQFeedStore(with_metaclass(MetaSingleton, object)):
                     num_months = 12 * dtend.year + dtend.month - 12 * dtbegin.year - dtbegin.month
                     bars = hist_conn.request_monthly_data(dataname, num_months, ascend=True)
             except (iq.NoDataError, iq.UnauthorizedError) as err:
-                error = "Unable to get historical data. Error:" % err
+                error = "Unable to get historical data. Error: %s" % err
                 self.put_notification(error, (), {})
                 q.put({"error": error})
                 return q
